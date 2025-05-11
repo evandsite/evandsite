@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Deteksi Tangan</title>
+    <style>
+        body { margin: 0; }
+        video {
+            position: absolute;
+            top: 0;
+            width: 100vw;
+            height: 100vh;
+            left: 0;
+            object-fit: cover;
+            z-index: 1;
+            transform: scaleX(-1);
+        }
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 2;
+            transform: scaleX(-1);
+        }
+        #score {
+            text-align: center;
+            font-size: 24px;
+            margin-top: 10px;
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 3;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div id="score">Skor: 0</div>
+    <video id="webcam" autoplay playsinline></video>
+    <canvas id="gameCanvas"></canvas>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils"></script>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const video = document.getElementById('webcam');
+        const ctx = canvas.getContext('2d');
+        const scoreDisplay = document.getElementById('score');
+
+        let score = 0;
+        let boxX = Math.random() * (canvas.width - 50);
+        let boxY = 0;
+        const boxWidth = 50;
+        const boxHeight = 50;
+        const boxSpeed = 22;
+        let startTime = Date.now();
+        const gameDuration = 30000; // 30 seconds
+
+        // Initialize MediaPipe Hands
+        const hands = new Hands({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`,
+        });
+        hands.setOptions({
+            maxNumHands: 1,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.5,
+            minTrackingConfidence: 0.5,
+        });
+
+        // Initialize Camera
+        const camera = new Camera(video, {
+            onFrame: async () => {
+                await hands.send({ image: video });
+            },
+            width: 1280,
+            height: 720,
+        });
+        camera.start();
+
+        // Adjust canvas size when video is loaded
+        video.addEventListener('loadeddata', () => {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+        });
+
+        // Main game loop
+        function startGame() {
+            function gameLoop() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                // Gambar video stream ke canvas
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+                // Draw the falling box
+                ctx.fillStyle = 'blue';
+                ctx.fillRect(boxX, boxY, boxWidth, boxHeight);
+
+                // Update box position
+                boxY += boxSpeed;
+                if (boxY > canvas.height) {
+                    boxY = 0;
+                    boxX = Math.random() * (canvas.width - boxWidth);
+                }
+
+                // Check timer
+                const elapsedTime = Date.now() - startTime;
+                if (elapsedTime >= gameDuration) {
+                    alert(`Game Over! Skor Anda: ${score}`);
+                    return;
+                }
+
+                requestAnimationFrame(gameLoop);
+            }
+
+            gameLoop();
+        }
+
+        // Detect hand and collision
+        hands.onResults((results) => {
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                const landmarks = results.multiHandLandmarks[0];
+                const indexFingerTip = landmarks[8]; // Index finger tip
+                const x = indexFingerTip.x * canvas.width;
+                const y = indexFingerTip.y * canvas.height;
+
+                // Draw the fingertip
+                ctx.beginPath();
+                ctx.arc(x, y, 10, 0, Math.PI * 2);
+                ctx.fillStyle = 'red';
+                ctx.fill();
+
+                // Check collision
+                if (
+                    x >= boxX &&
+                    x <= boxX + boxWidth &&
+                    y >= boxY &&
+                    y <= boxY + boxHeight
+                ) {
+                    score++;
+                    scoreDisplay.textContent = `Skor: ${score}`;
+                    boxY = 0;
+                    boxX = Math.random() * (canvas.width - boxWidth);
+                }
+            }
+        });
+
+        // Start the game
+        startGame();
+    </script>
+</body>
+</html>
